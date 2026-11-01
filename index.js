@@ -1,30 +1,40 @@
-import express from 'express'
-import { MongoClient } from 'mongodb';
-import 'dotenv/config'
-const app = express()
-const PORT = 8000
 
+import express from 'express';
+import { MongoClient } from 'mongodb';
+import cors from 'cors';
+import 'dotenv/config';
+
+const app = express();
+const PORT = 8000;
+
+app.use(cors());
 
 const client = new MongoClient(process.env.MONGODB_URI);
-export async function connectToMongoDB() {
-  try {
-    await client.connect();
-    console.log("You successfully connected to MongoDB!");
-    return client;
-  } catch (err) {
-    console.dir(err);
-  }
+
+let eventsCollection;
+
+async function connectToMongoDB() {
+  await client.connect();
+
+const db = client.db('test');
+eventsCollection = db.collection('events');
+
+  console.log('You successfully connected to MongoDB!');
 }
 
-connectToMongoDB()
+app.get('/', (req, res) => {
+  res.send({ message: 'Server is running' });
+});
 
+// Get all events
+app.get('/events', async (req, res) => {
+  const events = await eventsCollection.find().toArray();
 
-//http://localhost:8000
+  res.send(events);
+});
 
-app.get ('/', (req,res)=>{
-    res.send({message: 'server is running'})
-})
-
-app.listen(PORT, ()=> {
-    console.log(`server is running at ${PORT}`)
-})
+connectToMongoDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server is running at ${PORT}`);
+  });
+});
