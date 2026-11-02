@@ -151,6 +151,25 @@ app.delete('/events/:id', async (req, res) => {
   });
 });
 
+// Get single event by ID
+app.get('/events/:id', async (req, res) => {
+  const { id } = req.params;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send({ message: 'Invalid event ID' });
+  }
+
+  const event = await eventsCollection.findOne({
+    _id: new ObjectId(id),
+  });
+
+  if (!event) {
+    return res.status(404).send({ message: 'Event not found' });
+  }
+
+  res.send(event);
+});
+
 connectToMongoDB().then(() => {
   app.listen(PORT, () => {
     console.log(`Server is running at ${PORT}`);
