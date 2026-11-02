@@ -8,7 +8,7 @@ const app = express();
 const PORT = 8000;
 
 app.use(cors());
-
+app.use(express.json());
 const client = new MongoClient(process.env.MONGODB_URI);
 
 let eventsCollection;
@@ -42,6 +42,40 @@ app.get('/events/recent', async (req, res) => {
     .find({ eventDate: { $gte: new Date() } })
     .sort({ eventDate: 1 })
     .limit(6)
+    .toArray();
+
+  res.send(events);
+});
+
+// Create new event
+app.post('/events', async (req, res) => {
+  const { title, description, category, image, location, eventDate, creatorEmail, creatorId } = req.body;
+
+  const newEvent = {
+    title,
+    description,
+    category,
+    image,
+    location,
+    eventDate: new Date(eventDate),
+    creatorEmail,
+    creatorId,
+    createdAt: new Date(),
+  };
+
+  const result = await eventsCollection.insertOne(newEvent);
+
+  res.send({
+    message: 'Event created successfully',
+    insertedId: result.insertedId,
+  });
+});
+
+// Get events created by a user
+app.get('/events/my-events/:email', async (req, res) => {
+  const events = await eventsCollection
+    .find({ creatorEmail: req.params.email })
+    .sort({ createdAt: -1 })
     .toArray();
 
   res.send(events);
