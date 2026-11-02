@@ -1,6 +1,6 @@
 
 import express from 'express';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import cors from 'cors';
 import 'dotenv/config';
 
@@ -9,6 +9,7 @@ const PORT = 8000;
 
 app.use(cors());
 app.use(express.json());
+
 const client = new MongoClient(process.env.MONGODB_URI);
 
 let eventsCollection;
@@ -49,7 +50,16 @@ app.get('/events/recent', async (req, res) => {
 
 // Create new event
 app.post('/events', async (req, res) => {
-  const { title, description, category, image, location, eventDate, creatorEmail, creatorId } = req.body;
+  const {
+    title,
+    description,
+    category,
+    image,
+    location,
+    eventDate,
+    creatorEmail,
+    creatorId,
+  } = req.body;
 
   const newEvent = {
     title,
@@ -79,6 +89,66 @@ app.get('/events/my-events/:email', async (req, res) => {
     .toArray();
 
   res.send(events);
+});
+
+// Update event
+app.patch('/events/:id', async (req, res) => {
+  const {
+    title,
+    description,
+    category,
+    image,
+    location,
+    eventDate,
+    creatorEmail,
+  } = req.body;
+
+  const result = await eventsCollection.updateOne(
+    {
+      _id: new ObjectId(req.params.id),
+      creatorEmail,
+    },
+    {
+      $set: {
+        title,
+        description,
+        category,
+        image,
+        location,
+        eventDate: new Date(eventDate),
+      },
+    }
+  );
+
+  if (result.matchedCount === 0) {
+    return res.status(404).send({
+      message: 'Event not found!',
+    });
+  }
+
+  res.send({
+    message: 'Event updated successfully!',
+  });
+});
+
+// Delete event
+app.delete('/events/:id', async (req, res) => {
+  const { creatorEmail } = req.body;
+
+  const result = await eventsCollection.deleteOne({
+    _id: new ObjectId(req.params.id),
+    creatorEmail,
+  });
+
+  if (result.deletedCount === 0) {
+    return res.status(404).send({
+      message: 'Event not found!',
+    });
+  }
+
+  res.send({
+    message: 'Event deleted successfully!',
+  });
 });
 
 connectToMongoDB().then(() => {
