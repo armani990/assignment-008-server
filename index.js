@@ -13,12 +13,21 @@ app.use(express.json());
 const client = new MongoClient(process.env.MONGODB_URI);
 
 let eventsCollection;
+let joinedEventsCollection;
 
 async function connectToMongoDB() {
   await client.connect();
 
   const db = client.db('test');
+
   eventsCollection = db.collection('events');
+  joinedEventsCollection = db.collection('joinedEvents');
+
+  // Prevent duplicate event joining
+  await joinedEventsCollection.createIndex(
+    { eventId: 1, userEmail: 1 },
+    { unique: true }
+  );
 
   console.log('You successfully connected to MongoDB!');
 }
@@ -151,12 +160,21 @@ app.delete('/events/:id', async (req, res) => {
   });
 });
 
-// Get single event by ID
-app.get('/events/:id', async (req, res) => {
+// Join an event
+app.post('/events/:id/join', async (req, res) => {
   const { id } = req.params;
+  const { userEmail, userId } = req.body;
 
   if (!ObjectId.isValid(id)) {
-    return res.status(400).send({ message: 'Invalid event ID' });
+    return res.status(400).send({
+      message: 'Invalid event ID',
+    });
+  }
+
+  if (!userEmail || !userId) {
+    return res.status(400).send({
+      message: 'User information is required',
+    });
   }
 
   const event = await eventsCollection.findOne({
@@ -164,7 +182,71 @@ app.get('/events/:id', async (req, res) => {
   });
 
   if (!event) {
-    return res.status(404).send({ message: 'Event not found' });
+    return res.status(404).send({
+      message: 'Event not found',
+    });
+  }
+
+  const joinedEvent = {
+    eventId: new ObjectId(id),
+    userEmail,
+    userId,
+    joinedAt: new Date(),
+  };
+
+  try {
+    await joinedEventsCollection.insertOne(joinedEvent);
+
+    res.send({
+      message: 'Event joined successfully!',
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).send({
+        message: 'You have already joined this event!',
+      });
+    }
+
+    res.status(500).send({
+      message: 'Something went wrong!',
+    });
+  }
+});
+
+// Get joined events of a user
+app.get('/joined-events/:email', async (req, res) => {
+  const joinedEvents = await joinedEventsCollection
+    .find({ userEmail: req.params.email })
+    .sort({ joinedAt: -1 })
+    .toArray();
+
+  const eventIds = joinedEvents.map((item) => item.eventId);
+
+  const events = await eventsCollection
+    .find({ _id: { $in: eventIds } })
+    .toArray();
+
+  res.send(events);
+});
+
+// Get single event by ID
+app.get('/events/:id', async (req, res) => {
+  const { id } = req.params;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send({
+      message: 'Invalid event ID',
+    });
+  }
+
+  const event = await eventsCollection.findOne({
+    _id: new ObjectId(id),
+  });
+
+  if (!event) {
+    return res.status(404).send({
+      message: 'Event not found',
+    });
   }
 
   res.send(event);
